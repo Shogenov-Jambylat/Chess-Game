@@ -1,0 +1,77 @@
+import tkinter as tk
+
+
+board = [['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'],
+         ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
+         [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+         [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+         [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+         [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+         ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
+         ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r']]
+
+
+root = tk.Tk()
+root.title("Chess Game")
+
+selected_piece = None
+current_player = 'white'
+
+
+def update_board():
+    for row in range(8):
+        for col in range(8):
+            label = tk.Label(root, text=board[row][col], borderwidth=1, relief="solid", width=4, height=2, padx=5, pady=5)
+            label.grid(row=row, column=col)
+            label.bind("<Button-1>", lambda event, row=row, col=col: select_piece(row, col))
+
+
+def select_piece(row, col):
+    global selected_piece
+    if selected_piece is None:
+        selected_piece = (row, col)
+    else:
+        make_move(selected_piece[0], selected_piece[1], row, col)
+        selected_piece = None
+
+
+def make_move(start_row, start_col, end_row, end_col):
+    global current_player
+    piece = board[start_row][start_col]
+    
+    if start_row == end_row and start_col == end_col:
+        print("Фигура не может есть саму себя!")
+        return
+    
+    if current_player == 'white':
+        if piece.islower():
+            print("Похоже не ваш ход!")
+            return
+    else:
+        if piece.isupper():
+            print("Похоже не ваш ход!")
+            return
+    
+    if board[end_row][end_col].lower() == 'k':
+        check_mate = checkmate(end_row, end_col)
+        if check_mate:
+            print("Checkmate!")
+    
+    
+    if piece == 'p' and end_row == 0:
+        piece = 'q'
+    if piece == 'P' and end_row == 7:
+        piece = 'Q'
+    
+    board[end_row][end_col] = piece
+    board[start_row][start_col] = ' '
+    update_board()
+    
+    current_player = 'black' if current_player == 'white' else 'white'
+
+def checkmate(king_row, king_col):
+    pass
+
+
+update_board()
+root.mainloop()
