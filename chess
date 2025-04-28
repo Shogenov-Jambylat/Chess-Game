@@ -1,77 +1,182 @@
 import tkinter as tk
-
-
-board = [['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'],
-         ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
-         [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-         [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-         [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-         [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-         ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
-         ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r']]
+import chess
+import chess.svg
+from tkinter import messagebox
+from tkinter import ttk
 
 
 root = tk.Tk()
-root.title("Chess Game")
+root.title("Chess")
 
-selected_piece = None
-current_player = 'white'
+def create_chess_board():
+    dark_square = "#769656"
+    light_square = "#EEEDC4"
 
+    squares = [[0 for _ in range(8)] for _ in range(8)]
 
-def update_board():
     for row in range(8):
         for col in range(8):
-            label = tk.Label(root, text=board[row][col], borderwidth=1, relief="solid", width=4, height=2, padx=5, pady=5)
-            label.grid(row=row, column=col)
-            label.bind("<Button-1>", lambda event, row=row, col=col: select_piece(row, col))
+            color = dark_square if (row + col) % 2 == 0 else light_square
+            square = tk.Canvas(root, width=50, height=50, bg=color)
+            square.grid(row=row, column=col)
+            square.bind("<Button-1>", on_square_clicked)
+            squares[row][col] = square
+
+    update_board(squares, board)
+    return squares
+
+def update_board(squares, board):
+    for row in range(8):
+        for col in range(8):
+            piece = board.piece_at(chess.square(col, 7 - row))
+            canvas = squares[row][col]
+            canvas.delete("all")
+            if piece is not None:
+                symbol = {
+                    chess.PAWN: "♟",
+                    chess.ROOK: "♜",
+                    chess.KNIGHT: "♞",
+                    chess.BISHOP: "♝",
+                    chess.QUEEN: "♛",
+                    chess.KING: "♚"
+                }[piece.piece_type] if piece.color == chess.BLACK else {
+                    chess.PAWN: "♙",
+                    chess.ROOK: "♖",
+                    chess.KNIGHT: "♘",
+                    chess.BISHOP: "♗",
+                    chess.QUEEN: "♕",
+                    chess.KING: "♔"
+                }[piece.piece_type]
+                canvas.create_text(25, 25, text=symbol, font=("Arial", 24))
+
+TIME_LIMIT = 5  # Ограничение времени на ход в секундах
+current_player = chess.WHITE
+white_time = 1800  # 30 минут в секундах
+black_time = 1800
+
+def make_move(start_square, end_square):
+    global board, current_player, white_time, black_time
+    global board  
+    move = chess.Move(chess.square(start_square[1], 7 - start_square[0]), chess.square(end_square[1], 7 - end_square[0]))
+    
+    if move in board.legal_moves or (board.piece_at(chess.square(start_square[1], 7 - start_square[0])) is not None and board.piece_at(chess.square(start_square[1], 7 - start_square[0])).symbol().lower() == 'p' and (end_square[0] == 0 or end_square[0] == 7)):
+
+        if board.piece_at(chess.square(start_square[1], 7 - start_square[0])).symbol().lower() == 'p' and (end_square[0] == 0 or end_square[0] == 7):
+            promote_window = tk.Tk()
+            promote_window.title("Выберите фигуру")
+            promote_window.geometry("250x150")
+            
+            combo = ttk.Combobox(promote_window, values=['♕', '♖', '♗', '♘'],)
+            combo.pack(pady=20)
+            
+            def promote_pawn(board, squares):
+                promotion = combo.get()
+                promotion_map = {'♕': chess.QUEEN, '♖': chess.ROOK, '♗': chess.BISHOP, '♘': chess.KNIGHT}
+                promotion_move = chess.Move(chess.square(start_square[1], 7 - start_square[0]), chess.square(end_square[1], 7 - end_square[0]), promotion=promotion_map[promotion])
+                board.push(promotion_move)
+                update_board(squares, board)  
+                promote_window.destroy()
+                check_and_checkmate()
+            
+            promote_button = tk.Button(promote_window, text="Превратить", command=lambda: promote_pawn(board, squares))  
+            promote_button.pack(pady=10)
+
+            promote_window.mainloop()
+        else:
+            board.push(move)
+            update_board(squares, board)
+            check_and_checkmate()
+            if current_player == chess.WHITE:
+                white_time -= TIME_LIMIT
+                current_player = chess.BLACK
+            else:
+                black_time -= TIME_LIMIT
+                current_player = chess.WHITE
 
 
-def select_piece(row, col):
-    global selected_piece
-    if selected_piece is None:
-        selected_piece = (row, col)
+white_time_label = tk.Label(root, text="Время белого игрока: 30:00", font=("Arial", 12))
+white_time_label.grid(row=9, column=0, columnspan=4)
+
+black_time_label = tk.Label(root, text="Время черного игрока: 30:00", font=("Arial", 12))
+black_time_label.grid(row=9, column=4, columnspan=4)
+
+def format_time(seconds):
+    minutes = seconds // 60
+    seconds = seconds % 60
+    return f"{minutes:02d}:{seconds:02d}"
+
+def update_timer():
+    global white_time, black_time, current_player
+    if current_player == chess.WHITE:
+        white_time -= 1
+        white_time_label.config(text="Время белого игрока: " + format_time(white_time))
+        if white_time <= 0:
+            messagebox.showinfo("Время вышло!", "Белый игрок истекло время.")
+            reset_game()
     else:
-        make_move(selected_piece[0], selected_piece[1], row, col)
-        selected_piece = None
-
-
-def make_move(start_row, start_col, end_row, end_col):
-    global current_player
-    piece = board[start_row][start_col]
+        black_time -= 1
+        black_time_label.config(text="Время черного игрока: " + format_time(black_time))
+        if black_time <= 0:
+            messagebox.showinfo("Время вышло!", "Черный игрок истекло время.")
+            reset_game()
+    root.after(1000, update_timer)
+            
     
-    if start_row == end_row and start_col == end_col:
-        print("Фигура не может есть саму себя!")
-        return
-    
-    if current_player == 'white':
-        if piece.islower():
-            print("Похоже не ваш ход!")
-            return
-    else:
-        if piece.isupper():
-            print("Похоже не ваш ход!")
-            return
-    
-    if board[end_row][end_col].lower() == 'k':
-        check_mate = checkmate(end_row, end_col)
-        if check_mate:
+def check_and_checkmate():
+    if board.is_check():
+        king_square = board.king(board.turn)
+        king_row, king_col = 7 - chess.square_rank(king_square), chess.square_file(king_square)
+        squares[king_row][king_col].create_text(25, 25, text="☐", font=("Arial", 24), fill="red")  # Отображение шаха на доске
+        if board.is_checkmate():
             print("Checkmate!")
-    
-    
-    if piece == 'p' and end_row == 0:
-        piece = 'q'
-    if piece == 'P' and end_row == 7:
-        piece = 'Q'
-    
-    board[end_row][end_col] = piece
-    board[start_row][start_col] = ' '
-    update_board()
-    
-    current_player = 'black' if current_player == 'white' else 'white'
-
-def checkmate(king_row, king_col):
-    pass
+            reset_game()
 
 
-update_board()
-root.mainloop()
+def reset_game():
+    global board, squares
+    board = chess.Board()
+    for row in range(8):
+        for col in range(8):    
+            squares[row][col].delete("all")
+    update_board(squares)
+
+def highlight_moves(row, col):
+    piece_square = chess.square(col, 7 - row)  
+
+    possible_moves = [move.to_square for move in board.legal_moves if move.from_square == piece_square]
+
+    for move_square in possible_moves:
+        move_row, move_col = 7 - chess.square_rank(move_square), chess.square_file(move_square)
+        squares[move_row][move_col].create_rectangle(5, 5, 45, 45, outline="blue", width=3)  # Подсветка возможных ходов
+
+def on_square_clicked(event):
+    row = event.widget.grid_info()["row"]
+    col = event.widget.grid_info()["column"]
+    if "selected_square" not in globals():
+        global selected_square
+        selected_square = (row, col)
+        highlight_moves(row, col)  # Подсветка возможных ходов при выборе фигуры
+    else:
+        make_move(selected_square, (row, col))
+        del selected_square
+
+
+def print_board():
+    print("\n" + str(board) + "\n")
+
+board = chess.Board()
+squares = create_chess_board()
+
+def reset_game():
+    global board, squares
+    board = chess.Board()
+    for row in range(8):
+        for col in range(8):
+            squares[row][col].delete("all")
+    update_board(squares, board)
+
+restart_button = tk.Button(root, text="Начать заново", command=reset_game)
+restart_button.grid(row=8, column=0, columnspan=8, sticky="ew")
+squares = create_chess_board()
+update_timer()
+root.mainloop() 
